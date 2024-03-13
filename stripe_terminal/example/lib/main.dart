@@ -1,8 +1,11 @@
 // ignore_for_file: avoid_print
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:dio/dio.dart';
+import 'package:example/home_page.dart';
 import 'package:example/models/discovery_method.dart';
 import 'package:example/models/k.dart';
 import 'package:example/stripe_api.dart';
@@ -11,6 +14,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mek_stripe_terminal/mek_stripe_terminal.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:stripe/stripe.dart' as strip;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,11 +33,11 @@ class App extends StatelessWidget {
       theme: ThemeData.from(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          brightness: Brightness.dark,
+          brightness: Brightness.light,
           seedColor: Colors.amber,
         ),
       ),
-      home: const HomeScreen(),
+      home: const StripMethodeScreen(),
     );
   }
 }
@@ -65,6 +69,38 @@ class _HomeScreenState extends State<HomeScreen> {
   PaymentStatus _paymentStatus = PaymentStatus.notReady;
   PaymentIntent? _paymentIntent;
   CancelableFuture<PaymentIntent>? _collectingPaymentMethod;
+  String secretKey =
+      'sk_test_51OnHkgJyI8NSrQSZdwpOXAGd31Rgnb25Hq3UmGUQE9axi9hshDTWjCQIbZmaAoyffHBAqCvwQhAOlYpwnjyClzE1007h4THYPm';
+
+ Future<List<Location>> listLocations() async {
+  try {
+    final dio = Dio();
+
+    dio.options.headers['Authorization'] = 'Bearer $secretKey';
+
+    final response = await dio.get(
+      'https://api.stripe.com/v1/terminal/locations',
+      queryParameters: {
+        'limit': 3,
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> locationsData = response.data['data'];
+
+      final List<Location> locations = locationsData
+          .map((locationData) => Location.fromJson(locationData))
+          .toList();
+      return locations;
+    } else {
+      throw Exception(
+          'Failed to list locations. Status code: ${response.statusCode}, Data: ${response.data}');
+    }
+  } catch (e) {
+    print('Error: $e');
+    rethrow; // Rethrow the exception to propagate it further
+  }
+}
 
   @override
   void dispose() {
@@ -76,7 +112,8 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<String> _fetchConnectionToken() async => _api.createTerminalConnectionToken();
+  Future<String> _fetchConnectionToken() async =>
+      _api.createTerminalConnectionToken();
 
   void _initTerminal() async {
     final permissions = [
@@ -92,7 +129,8 @@ class _HomeScreenState extends State<HomeScreen> {
       final status = await permission.request();
       print('$permission: $status');
 
-      if (status == PermissionStatus.denied || status == PermissionStatus.permanentlyDenied) {
+      if (status == PermissionStatus.denied ||
+          status == PermissionStatus.permanentlyDenied) {
         _showSnackBar('Please grant ${permission.name} permission.');
         return;
       }
@@ -107,6 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _showSnackBar('Please enable ${service.name} service.');
           return;
         }
+        
       }
     }
 
@@ -115,7 +154,8 @@ class _HomeScreenState extends State<HomeScreen> {
       fetchToken: _fetchConnectionToken,
     );
     setState(() => _terminal = terminal);
-    _onConnectionStatusChangeSub = terminal.onConnectionStatusChange.listen((status) {
+    _onConnectionStatusChangeSub =
+        terminal.onConnectionStatusChange.listen((status) {
       print('Connection Status Changed: ${status.name}');
       setState(() {
         _connectionStatus = status;
@@ -125,7 +165,8 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       });
     });
-    _onUnexpectedReaderDisconnectSub = terminal.onUnexpectedReaderDisconnect.listen((reader) {
+    _onUnexpectedReaderDisconnectSub =
+        terminal.onUnexpectedReaderDisconnect.listen((reader) {
       print('Reader Unexpected Disconnected: ${reader.label}');
     });
     _onPaymentStatusChangeSub = terminal.onPaymentStatusChange.listen((status) {
@@ -136,12 +177,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _fetchLocations(Terminal terminal) async {
     setState(() => _locations = const []);
-    final locations = await terminal.listLocations();
+    final locations = await listLocations();
     setState(() => _locations = locations);
   }
 
   void _toggleLocation(Location location) {
-    setState(() => _selectedLocation = _selectedLocation == location ? null : location);
+    setState(() =>
+        _selectedLocation = _selectedLocation == location ? null : location);
   }
 
   void _changeMode() {
@@ -207,7 +249,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _disconnectReader(Terminal terminal) async {
     await terminal.disconnectReader();
-    _showSnackBar('Terminal ${_reader!.label ?? _reader!.serialNumber} disconnected');
+    _showSnackBar(
+        'Terminal ${_reader!.label ?? _reader!.serialNumber} disconnected');
     setState(() => _reader = null);
   }
 
@@ -218,7 +261,8 @@ class _HomeScreenState extends State<HomeScreen> {
       DiscoveryMethod.bluetoothScan => BluetoothDiscoveryConfiguration(
           isSimulated: _isSimulated,
         ),
-      DiscoveryMethod.bluetoothProximity => BluetoothProximityDiscoveryConfiguration(
+      DiscoveryMethod.bluetoothProximity =>
+        BluetoothProximityDiscoveryConfiguration(
           isSimulated: _isSimulated,
         ),
       DiscoveryMethod.handOff => const HandoffDiscoveryConfiguration(),
@@ -256,7 +300,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _createPaymentIntent(Terminal terminal) async {
-    final paymentIntent = await terminal.createPaymentIntent(PaymentIntentParameters(
+    final paymentIntent =
+        await terminal.createPaymentIntent(PaymentIntentParameters(
       amount: 200,
       currency: K.currency,
       captureMethod: CaptureMethod.automatic,
@@ -268,12 +313,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _createFromApiAndRetrievePaymentIntentFromSdk(Terminal terminal) async {
     final paymentIntentClientSecret = await _api.createPaymentIntent();
-    final paymentIntent = await terminal.retrievePaymentIntent(paymentIntentClientSecret);
+    final paymentIntent =
+        await terminal.retrievePaymentIntent(paymentIntentClientSecret);
     setState(() => _paymentIntent = paymentIntent);
     _showSnackBar('Payment intent retrieved!');
   }
 
-  void _collectPaymentMethod(Terminal terminal, PaymentIntent paymentIntent) async {
+  void _collectPaymentMethod(
+      Terminal terminal, PaymentIntent paymentIntent) async {
     final collectingPaymentMethod = terminal.collectPaymentMethod(
       paymentIntent,
       skipTipping: true,
@@ -300,12 +347,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _cancelCollectingPaymentMethod(CancelableFuture<PaymentIntent> cancelable) async {
+  void _cancelCollectingPaymentMethod(
+      CancelableFuture<PaymentIntent> cancelable) async {
     await cancelable.cancel();
   }
 
-  void _confirmPaymentIntent(Terminal terminal, PaymentIntent paymentIntent) async {
-    final processedPaymentIntent = await terminal.confirmPaymentIntent(paymentIntent);
+  void _confirmPaymentIntent(
+      Terminal terminal, PaymentIntent paymentIntent) async {
+    final processedPaymentIntent =
+        await terminal.confirmPaymentIntent(paymentIntent);
     setState(() => _paymentIntent = processedPaymentIntent);
     _showSnackBar('Payment processed!');
   }
@@ -349,7 +399,8 @@ class _HomeScreenState extends State<HomeScreen> {
           onTap: () => _toggleLocation(e),
           dense: true,
           title: Text('${e.id}: ${e.displayName}'),
-          subtitle: Text('${e.address?.city},${e.address?.state},${e.address?.line1}'),
+          subtitle: Text(
+              '${e.address?.city},${e.address?.state},${e.address?.line1}'),
         );
       }),
     ];
@@ -376,14 +427,16 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       if (_connectionStatus != ConnectionStatus.notConnected)
         TextButton(
-          onPressed: terminal != null && _connectionStatus == ConnectionStatus.connected
+          onPressed: terminal != null &&
+                  _connectionStatus == ConnectionStatus.connected
               ? () => _disconnectReader(terminal)
               : null,
           child: const Text('Disconnect Reader'),
         )
       else if (_discoverReaderSub == null)
         TextButton(
-          onPressed: terminal != null ? () => _startDiscoverReaders(terminal) : null,
+          onPressed:
+              terminal != null ? () => _startDiscoverReaders(terminal) : null,
           child: const Text('Scan Devices'),
         )
       else
@@ -401,11 +454,13 @@ class _HomeScreenState extends State<HomeScreen> {
           enabled: terminal != null &&
               _connectionStatus != ConnectionStatus.connecting &&
               (_reader == null || _reader!.serialNumber == e.serialNumber),
-          onTap: terminal != null && _connectionStatus == ConnectionStatus.notConnected
+          onTap: terminal != null &&
+                  _connectionStatus == ConnectionStatus.notConnected
               ? () => _connectReader(terminal, e)
               : null,
           title: Text(e.serialNumber),
-          subtitle: Text('${e.deviceType?.name ?? 'Unknown'} ${e.locationId ?? 'NoLocation'}'),
+          subtitle: Text(
+              '${e.deviceType?.name ?? 'Unknown'} ${e.locationId ?? 'NoLocation'}'),
           trailing: Text('${(e.batteryLevel * 100).toInt()}'),
         );
       }),
@@ -416,27 +471,32 @@ class _HomeScreenState extends State<HomeScreen> {
         title: Text('Payment Status: ${_paymentStatus.name}'),
       ),
       TextButton(
-        onPressed: terminal != null ? () => _createPaymentIntent(terminal) : null,
+        onPressed:
+            terminal != null ? () => _createPaymentIntent(terminal) : null,
         child: const Text('Create PaymentIntent via Skd'),
       ),
       TextButton(
-        onPressed:
-            terminal != null ? () => _createFromApiAndRetrievePaymentIntentFromSdk(terminal) : null,
-        child: const Text('Create PaymentIntent via Api and Retrieve it via Sdk'),
+        onPressed: terminal != null
+            ? () => _createFromApiAndRetrievePaymentIntentFromSdk(terminal)
+            : null,
+        child:
+            const Text('Create PaymentIntent via Api and Retrieve it via Sdk'),
       ),
       if (collectingPaymentMethod == null)
         TextButton(
           onPressed: terminal != null &&
                   _reader != null &&
                   paymentIntent != null &&
-                  paymentIntent.status == PaymentIntentStatus.requiresPaymentMethod
+                  paymentIntent.status ==
+                      PaymentIntentStatus.requiresPaymentMethod
               ? () => _collectPaymentMethod(terminal, paymentIntent)
               : null,
           child: const Text('Collect Payment Method'),
         )
       else
         TextButton(
-          onPressed: () => _cancelCollectingPaymentMethod(collectingPaymentMethod),
+          onPressed: () =>
+              _cancelCollectingPaymentMethod(collectingPaymentMethod),
           child: const Text('Cancel Collecting Payment Method'),
         ),
       TextButton(

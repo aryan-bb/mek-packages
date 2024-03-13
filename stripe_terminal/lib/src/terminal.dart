@@ -126,7 +126,7 @@ class Terminal {
   ///   to register the reader to your Stripe account. If the SDK does not already have a connection token,
   ///   it will call the fetchToken method which was passed as an argument in [getInstance].
   Stream<List<Reader>> discoverReaders(DiscoveryConfiguration discoveryConfiguration) {
-    _controller = _handleStream(_controller, () {
+    _controller = handleStream(_controller, () {
       return _platform.discoverReaders(discoveryConfiguration);
     });
     return _controller!.stream;
@@ -554,7 +554,7 @@ class Terminal {
   Future<void> clearReaderDisplay() async => await _platform.clearReaderDisplay();
 //endregion
 
-  StreamController<T> _handleStream<T>(
+  StreamController<T> handleStream<T>(
     StreamController<T>? oldController,
     Stream<T> Function() onListen,
   ) {

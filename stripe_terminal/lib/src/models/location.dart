@@ -17,6 +17,17 @@ class Location with _$Location {
     required this.livemode,
     required this.metadata,
   });
+
+  factory Location.fromJson(Map<String, dynamic> json) {
+  return Location(
+    address: json['address'] != null ? Address.fromJson(json['address']) : null,
+    displayName: json['displayName'] ?? '',
+    id: json['id'] ?? '',
+    livemode: json['livemode'] ?? false,
+    metadata: (json['metadata'] as Map<String, dynamic> ?? {}).cast<String, String>(),
+  );
+}
+
 }
 
 @DataClass()
@@ -36,4 +47,14 @@ class Address with _$Address {
     required this.postalCode,
     required this.state,
   });
+
+  factory Address.fromJson(Map<String, dynamic> json) {
+    return Address(
+        city: json['city'] ?? '',
+        country: json['country'] ?? '',
+        line1: json['line1'] ?? '',
+        line2: json['line2'] ?? '',
+        postalCode: json['postalCode'] ?? '',
+        state: json['state'] ?? '');
+  }
 }
