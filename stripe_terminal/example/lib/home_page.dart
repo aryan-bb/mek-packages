@@ -122,15 +122,21 @@ class _StripMethodeScreenState extends State<StripMethodeScreen> {
         }
       }
     } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
-      showSnackBar(
-          ' Android version not supported. Upgrade device to Android 10+',
-          context);
-      // Handle errors if any
-      print('Error during reader discovery: $e');
-    }
+  setState(() {
+    isLoading = false;
+  });
+  if (e is TerminalException) {
+    final String errorMessage = (e).message;
+    showSnackBar(
+        '$errorMessage',
+        context);
+  } else {
+    print('Error during reader discovery: $e');
+  }
+}
+
+
+
   }
 
   Reader? _reader;
